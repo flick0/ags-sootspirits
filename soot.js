@@ -116,7 +116,7 @@ class Soot {
         this._y_speed *= 1 - this.drag
 
         if (dist_to_cursor > 3*this.radius) {
-            this.jump_speed -= this.jump_speed / 10
+            this.jump_speed -= this.jump_speed / 2
         } else {
             if (this.jump_offset > 0) {
                 this.jump_speed -= 1
@@ -268,7 +268,7 @@ class Soot {
         ctx.fill()
 
         // lighter center gradient
-        pattern = new Cairo.RadialGradient(this.x, this.y + this.jump_offset, 0, this.x, this.y, this.radius)
+        pattern = new Cairo.RadialGradient(this.x, this.y + this.jump_offset, 0, this.x, this.y + this.jump_offset, this.radius)
         pattern.addColorStopRGBA(0, ...this.highlightcolor, 1)
         pattern.addColorStopRGBA(this.inner_gradient_stop, ...this.highlightcolor, 1)
         pattern.addColorStopRGBA(1, ...this.highlightcolor, 0)
