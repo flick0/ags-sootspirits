@@ -77,7 +77,9 @@ class Soot {
         this.inner_gradient_stop = 0.5
 
         this.pupil_size = 0.1
-        this.shadow_radius = this.radius/2
+
+        this.jump_offset = 0
+        this.jump_speed = 0
 
         // speed out of 1000
         this.max_speed = 1000 / (this.radius * 100)
@@ -105,17 +107,35 @@ class Soot {
         let dx = this.to_x - this.x
         let dy = this.to_y - this.y
 
+        let dist_to_cursor = Math.sqrt(dx * dx + dy * dy)
+
         this._x_speed += dx / this._max_speed
         this._y_speed += dy / this._max_speed
 
         this._x_speed *= 1 - this.drag
         this._y_speed *= 1 - this.drag
 
+        if (dist_to_cursor > 3*this.radius) {
+            this.jump_speed -= this.jump_speed / 10
+        } else {
+            if (this.jump_offset > 0) {
+                this.jump_speed -= 1
+            }
+            if (this.jump_offset < 0) {
+                this.jump_speed += this.drag
+            }
+        }
+
         if (Date.now() - this.style_time > 1000/4) {
             this.inner_gradient_stop = rand_float(0.5, 0.7)
             this.outer_gradient_stop = rand_float(0.5, 0.8)
             this.hairs = Array.from({length: rand_int(50,100)}, () => [rand_float(0,0.1), rand_float(0, 5)])
             this.shadow_radius = this.radius/2 * rand_float(0.5, 1.5)
+            if ((dist_to_cursor < 2*this.radius) && this.jump_offset === 0) {
+                print("jumping")
+                this.jump_speed = rand_int(-5, 0)
+            }
+            
             this.style_time = Date.now()
         }
 
@@ -189,6 +209,7 @@ class Soot {
 
         this.x += this._x_speed
         this.y += this._y_speed
+        this.jump_offset += this.jump_speed
     }
 
     draw(ctx) {
@@ -220,13 +241,13 @@ class Soot {
         // print("drawing soot")
         
         // body
-        let pattern = new Cairo.RadialGradient(this.x, this.y, 0, this.x, this.y, this.radius)
+        let pattern = new Cairo.RadialGradient(this.x, this.y + this.jump_offset, 0, this.x, this.y + this.jump_offset, this.radius)
         pattern.addColorStopRGBA(0, ...this.color, 1)
         pattern.addColorStopRGBA(this.outer_gradient_stop, ...this.color, 1)
         pattern.addColorStopRGBA(1, ...this.color, 0)
         ctx.setSource(pattern)
     
-        ctx.arc(this.x, this.y, this.radius, 0, 2 * Math.PI)
+        ctx.arc(this.x, this.y + this.jump_offset, this.radius, 0, 2 * Math.PI)
         ctx.fill()
         
         // hairs
@@ -235,10 +256,10 @@ class Soot {
 
             let angle = Math.PI * 2 * (i / this.hairs.length) + angle_offset
             let x = this.x + Math.cos(angle) * (this.radius + length)
-            let y = this.y + Math.sin(angle) * (this.radius + length)
+            let y = this.y + this.jump_offset + Math.sin(angle) * (this.radius + length)
 
             ctx.setSourceRGBA(...this.color, 1)
-            ctx.moveTo(this.x, this.y)
+            ctx.moveTo(this.x, this.y + this.jump_offset)
             ctx.lineTo(x, y)
             ctx.setLineWidth(1)
             ctx.stroke()
@@ -247,16 +268,16 @@ class Soot {
         ctx.fill()
 
         // lighter center gradient
-        pattern = new Cairo.RadialGradient(this.x, this.y, 0, this.x, this.y, this.radius)
+        pattern = new Cairo.RadialGradient(this.x, this.y + this.jump_offset, 0, this.x, this.y, this.radius)
         pattern.addColorStopRGBA(0, ...this.highlightcolor, 1)
         pattern.addColorStopRGBA(this.inner_gradient_stop, ...this.highlightcolor, 1)
         pattern.addColorStopRGBA(1, ...this.highlightcolor, 0)
         ctx.setSource(pattern)
 
-        ctx.arc(this.x, this.y, this.radius, 0, 2 * Math.PI)
+        ctx.arc(this.x, this.y + this.jump_offset, this.radius, 0, 2 * Math.PI)
         ctx.fill()
 
-        let angle = Math.atan2(this.to_y - this.y, this.to_x - this.x)
+        let angle = Math.atan2(this.to_y - this.y + this.jump_offset, this.to_x - this.x)
 
         // eyes
 
@@ -268,7 +289,7 @@ class Soot {
             // outer
             ctx.setSourceRGBA(...eye_color, 1);
             ctx.save();
-            ctx.translate(this.x + Math.cos(angle) * (this.radius / 2), this.y + Math.sin(angle) * (this.radius / 2));
+            ctx.translate(this.x + Math.cos(angle) * (this.radius / 2), this.y + this.jump_offset + Math.sin(angle) * (this.radius / 2));
 
             // squish based on angle
             ctx.scale(1, Math.abs(Math.sin(angle)) + 0.5)
@@ -287,13 +308,13 @@ class Soot {
             // pupil
             ctx.setSourceRGBA(...pupil_color, 1);
             ctx.save();
-            ctx.translate(this.x + Math.cos(angle) * (this.radius / 2), this.y + Math.sin(angle) * (this.radius / 2));
+            ctx.translate(this.x + Math.cos(angle) * (this.radius / 2), this.y + this.jump_offset + Math.sin(angle) * (this.radius / 2));
 
             // squish based on angle
             ctx.scale(1, Math.abs(Math.sin(angle)) + 0.5)
 
             // inner 1
-            let look_angle = Math.atan2(this.to_y - this.y, this.to_x - this.x)
+            let look_angle = Math.atan2(this.to_y - this.y - this.jump_offset, this.to_x - this.x)
             ctx.translate(Math.cos(look_angle) * (this.radius / 10), Math.sin(look_angle) * (this.radius / 10));
             ctx.arc(0, 0, this.radius * this.pupil_size, 0, 2 * Math.PI);
 
@@ -310,7 +331,7 @@ class Soot {
         ctx.save();
         ctx.translate(this.x, this.y);
         ctx.scale(1, 0.3);
-        ctx.arc(0, this.radius/0.3 + 10/0.3, this.shadow_radius, 0, 2 * Math.PI);
+        ctx.arc(0, this.radius/0.3 + 10/0.3, Math.max(this.radius/5,this.radius/1.5 + (this.jump_offset/2)), 0, 2 * Math.PI);
         ctx.restore();
         ctx.fill();
 
